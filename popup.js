@@ -33,7 +33,6 @@ function render() {
   const emptyState = document.getElementById('emptyState');
   ul.innerHTML = '';
   
-  // Sort: Active first, then by Start Time (Newest First)
   const ids = Object.keys(currentData.tasks).sort((a, b) => {
     if (a === currentData.activeTaskId) return -1;
     if (b === currentData.activeTaskId) return 1;
@@ -50,7 +49,7 @@ function render() {
   ids.forEach(id => {
     const task = currentData.tasks[id];
     const isRunning = task.status === 'running';
-    const totalTime = calculateTime(task);
+    const totalMs = calculateTime(task);
     
     const li = document.createElement('li');
     li.className = `task-row ${isRunning ? 'running' : ''}`;
@@ -59,11 +58,17 @@ function render() {
     li.innerHTML = `
       <div class="task-info">
         <div class="task-title" title="${task.title}">${task.title}</div>
-        <div class="timer">${formatTime(totalTime)}</div>
+        <div class="timer-container">
+            <span class="timer">${formatTime(totalMs)}</span>
+            <span class="decimal">(${formatDecimal(totalMs)})</span>
+        </div>
       </div>
       <div class="btn-group">
         <button class="icon-btn ${isRunning ? 'btn-pause' : 'btn-play'}" data-action="toggle" title="${isRunning ? 'Pause' : 'Start'}">
           ${isRunning ? '⏸' : '▶'}
+        </button>
+        <button class="icon-btn btn-copy" data-action="copy" title="Copy decimal hours to clipboard">
+            📋
         </button>
         <button class="icon-btn btn-link" data-action="link" title="Open in Basecamp">🔗</button>
         <button class="icon-btn btn-del" data-action="delete" title="Delete Timer">🗑</button>
@@ -82,6 +87,17 @@ function render() {
         chrome.runtime.sendMessage({ action: 'DELETE_TASK', taskId: id }, loadData);
       }
     };
+    // COPY HANDLER
+    const copyBtn = li.querySelector('[data-action="copy"]');
+    copyBtn.onclick = () => {
+        const decimal = formatDecimal(calculateTime(task));
+        navigator.clipboard.writeText(decimal).then(() => {
+            // Visual feedback
+            const originalText = copyBtn.textContent;
+            copyBtn.textContent = '✅';
+            setTimeout(() => { copyBtn.textContent = originalText; }, 1000);
+        });
+    };
 
     ul.appendChild(li);
   });
@@ -93,10 +109,12 @@ function updateActiveTimerVisuals() {
   
   const row = document.querySelector(`.task-row[data-id="${activeId}"]`);
   if (row) {
-    const timerDiv = row.querySelector('.timer');
     const task = currentData.tasks[activeId];
     if(task) {
-        timerDiv.textContent = formatTime(calculateTime(task));
+        const totalMs = calculateTime(task);
+        // Update both the HH:MM:SS and the Decimal value
+        row.querySelector('.timer').textContent = formatTime(totalMs);
+        row.querySelector('.decimal').textContent = `(${formatDecimal(totalMs)})`;
     }
   }
 }
@@ -109,13 +127,19 @@ function calculateTime(task) {
   return t;
 }
 
+// HH:MM:SS format
 function formatTime(ms) {
   const totalSeconds = Math.floor(ms / 1000);
   const h = Math.floor(totalSeconds / 3600);
   const m = Math.floor((totalSeconds % 3600) / 60);
   const s = totalSeconds % 60;
-  
   return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+}
+
+// Decimal format (e.g. 1.25)
+function formatDecimal(ms) {
+    const hours = ms / (1000 * 60 * 60);
+    return hours.toFixed(2);
 }
 
 function showError(msg) {
