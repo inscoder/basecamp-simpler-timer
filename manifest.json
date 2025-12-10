@@ -2,13 +2,10 @@
     "manifest_version": 3,
     "name": "Basecamp Simple Timer",
     "version": "1.0",
-    "description": "A stopwatch for Basecamp todos and cards.",
+    "description": "A focused stopwatch for Basecamp 3 tasks.",
     "permissions": [
       "storage",
       "activeTab"
-    ],
-    "host_permissions": [
-      "https://3.basecamp.com/*"
     ],
     "background": {
       "service_worker": "background.js"
@@ -26,4 +23,4 @@
       "48": "icons/icon48.png",
       "128": "icons/icon128.png"
     }
-  }
+}
