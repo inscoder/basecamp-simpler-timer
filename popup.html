@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" type="text/css" href="popup.css">
+</head>
+<body>
+  <div class="header">
+    <h3>Basecamp Timer</h3>
+    <button id="addBtn" class="add-btn">+ Add Page</button>
+  </div>
+  
+  <div id="errorMsg" class="error hidden"></div>
+  
+  <ul id="taskList">
+    <!-- Tasks injected here by JS -->
+  </ul>
+
+  <!-- Empty state template -->
+  <div id="emptyState" class="empty-state hidden">
+    No timers yet.<br>
+    Navigate to a Basecamp task and click "+ Add Page"
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
