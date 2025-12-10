@@ -63,33 +63,44 @@ body {
     gap: 10px;
     transition: all 0.2s;
     box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    position: relative; /* For positioning context */
   }
   
+  /* STATUS: RUNNING (Green Left Border) */
   .task-row.running {
     border-left: 4px solid #4CAF50;
     background: #fbfdfb;
   }
   
+  /* STATUS: CURRENT PAGE (Blue Right Border + Highlight) */
+  .task-row.current-page-row {
+    border-right: 4px solid #2980b9;
+    background-color: #f0f8ff; /* AliceBlue */
+  }
+  
+  /* If running AND current, blend backgrounds slightly */
+  .task-row.running.current-page-row {
+      background: linear-gradient(to right, #fbfdfb, #f0f8ff);
+  }
+  
+  
   .task-info {
     flex-grow: 1;
     overflow: hidden;
-    /* Make sure the clickable area doesn't span weirdly */
     display: flex;
     flex-direction: column;
   }
   
   /* --- CLICKABLE TITLE STYLES --- */
   .task-title {
-    display: inline-block; /* Keeps hover underline tight to text */
+    display: inline-block;
     font-size: 13px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     margin-bottom: 4px;
     font-weight: 600;
-    
-    /* Link Styling */
-    color: #2980b9; /* Basecamp Blue */
+    color: #2980b9;
     cursor: pointer;
     text-decoration: none;
     transition: color 0.1s;

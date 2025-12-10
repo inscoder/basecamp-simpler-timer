@@ -25,7 +25,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       handleDeleteTask(request.taskId).then(sendResponse);
       break;
     case 'OPEN_LINK':
-      chrome.tabs.create({ url: request.url });
+      handleOpenLink(request.url);
       break;
   }
   return true; // Required for async response
@@ -59,7 +59,29 @@ function getBasecampId(url) {
     }
 }
 
-// --- UPDATED LOGIC HERE ---
+// LINK HANDLER (Fixed Back Button Trap)
+async function handleOpenLink(url) {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    
+    if (tab) {
+        // Fix: If we are already on the exact same URL, RELOAD instead of UPDATE.
+        // 'Update' pushes a new history entry (A -> A), trapping the user so 'Back' just goes to the previous A.
+        // 'Reload' refreshes the page without adding to history.
+        
+        // Normalize URLs (ignore trailing slashes) for comparison
+        const current = tab.url.replace(/\/$/, '');
+        const target = url.replace(/\/$/, '');
+
+        if (current === target) {
+            chrome.tabs.reload(tab.id);
+        } else {
+            chrome.tabs.update(tab.id, { url: url });
+        }
+    } else {
+        chrome.tabs.create({ url: url });
+    }
+}
+
 async function handleAddTask(sendResponse) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   
@@ -77,7 +99,7 @@ async function handleAddTask(sendResponse) {
   const data = await getData();
   const now = Date.now();
 
-  // 1. AUTO-PAUSE: If a different task is currently running, pause it.
+  // 1. AUTO-PAUSE
   if (data.activeTaskId && data.activeTaskId !== id) {
       const active = data.tasks[data.activeTaskId];
       if (active) {
@@ -87,21 +109,17 @@ async function handleAddTask(sendResponse) {
       }
   }
 
-  // 2. PREPARE THE TARGET TASK
+  // 2. PREPARE TARGET
   if (data.tasks[id]) {
-      // SCENARIO: Existing Task.
-      // Action: Resume it if it wasn't running.
-      // Note: We also update title/url in case they changed.
+      // Resume existing
       const task = data.tasks[id];
       if (task.status !== 'running') {
           task.status = 'running';
           task.lastStartTime = now;
       }
-      // Update metadata (optional but good practice)
       task.title = tab.title.replace(/ on Basecamp$/, '').trim();
   } else {
-      // SCENARIO: New Task.
-      // Action: Create it with status 'running'.
+      // Create new
       const cleanTitle = tab.title.replace(/ on Basecamp$/, '').trim();
       const urlObj = new URL(tab.url);
       const cleanUrl = urlObj.origin + urlObj.pathname;
@@ -110,13 +128,13 @@ async function handleAddTask(sendResponse) {
         id: id,
         title: cleanTitle,
         url: cleanUrl,
-        status: 'running', // <--- Starts immediately
+        status: 'running',
         accumulatedTime: 0,
-        lastStartTime: now // <--- Timestamp set immediately
+        lastStartTime: now
       };
   }
 
-  // 3. SET AS ACTIVE
+  // 3. SET ACTIVE
   data.activeTaskId = id;
   
   await saveData(data);
@@ -137,7 +155,7 @@ async function handleToggleTask(taskId) {
     targetTask.status = 'paused';
     data.activeTaskId = null;
   } else {
-    // START (and auto-pause others)
+    // START
     if (data.activeTaskId && data.activeTaskId !== taskId) {
         const active = data.tasks[data.activeTaskId];
         if (active) {

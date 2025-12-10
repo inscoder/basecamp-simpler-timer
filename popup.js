@@ -1,4 +1,5 @@
 let currentData = { activeTaskId: null, tasks: {} };
+let currentTabId = null; // Store the ID of the Basecamp page we are looking at
 
 document.addEventListener('DOMContentLoaded', () => {
   loadData();
@@ -21,11 +22,42 @@ document.addEventListener('DOMContentLoaded', () => {
   }, 1000);
 });
 
-function loadData() {
-  chrome.runtime.sendMessage({ action: 'GET_DATA' }, (data) => {
-    currentData = data;
-    render();
+// Helper: Same parser logic as background.js to ensure we match correctly
+function getIdFromUrl(url) {
+    try {
+        const urlObj = new URL(url);
+        let path = urlObj.pathname;
+        if (path.endsWith('/')) path = path.slice(0, -1);
+        const segments = path.split('/');
+        const lastSegment = segments[segments.length - 1];
+        if (/^\d+$/.test(lastSegment)) return lastSegment;
+        return null;
+    } catch (e) {
+        return null;
+    }
+}
+
+async function loadData() {
+  // 1. Get Timer Data
+  const dataPromise = new Promise(resolve => {
+      chrome.runtime.sendMessage({ action: 'GET_DATA' }, resolve);
   });
+
+  // 2. Get Current Tab Info (to see if we are on a known task)
+  const tabPromise = chrome.tabs.query({ active: true, currentWindow: true });
+
+  const [data, tabs] = await Promise.all([dataPromise, tabPromise]);
+  
+  currentData = data;
+  
+  // Determine if current tab matches any task
+  if (tabs && tabs[0] && tabs[0].url.includes('3.basecamp.com')) {
+      currentTabId = getIdFromUrl(tabs[0].url);
+  } else {
+      currentTabId = null;
+  }
+
+  render();
 }
 
 function render() {
@@ -49,15 +81,20 @@ function render() {
   ids.forEach(id => {
     const task = currentData.tasks[id];
     const isRunning = task.status === 'running';
+    
+    // Check if this row matches the page we are looking at
+    const isCurrentPage = (id === currentTabId);
+
     const totalMs = calculateTime(task);
     
     const li = document.createElement('li');
-    li.className = `task-row ${isRunning ? 'running' : ''}`;
+    // Add 'current-page-row' class if match
+    li.className = `task-row ${isRunning ? 'running' : ''} ${isCurrentPage ? 'current-page-row' : ''}`;
     li.dataset.id = id;
 
-    // Changes: 
-    // 1. Added data-action="link" to title 
-    // 2. Removed the Link button from btn-group
+    // Optional: Add a visual indicator in text, though the border handles it well
+    // const indicator = isCurrentPage ? '<span style="color:#2980b9; margin-left:4px;">📍</span>' : '';
+
     li.innerHTML = `
       <div class="task-info">
         <div class="task-title" data-action="link" title="Open in Basecamp: ${task.title}">${task.title}</div>
@@ -81,18 +118,14 @@ function render() {
     li.querySelector('[data-action="toggle"]').onclick = () => {
       chrome.runtime.sendMessage({ action: 'TOGGLE_TASK', taskId: id }, loadData);
     };
-    
-    // ATTACH LINK HANDLER TO TITLE
     li.querySelector('[data-action="link"]').onclick = () => {
       chrome.runtime.sendMessage({ action: 'OPEN_LINK', url: task.url });
     };
-
     li.querySelector('[data-action="delete"]').onclick = () => {
       if(confirm('Are you sure you want to remove this timer?')) {
         chrome.runtime.sendMessage({ action: 'DELETE_TASK', taskId: id }, loadData);
       }
     };
-    
     const copyBtn = li.querySelector('[data-action="copy"]');
     copyBtn.onclick = () => {
         const decimal = formatDecimal(calculateTime(task));
