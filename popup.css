@@ -1,5 +1,5 @@
 body {
-    width: 360px; /* Widened slightly to fit the new button */
+    width: 360px;
     margin: 0;
     padding: 15px;
     background-color: #f9f9f9;
@@ -73,17 +73,31 @@ body {
   .task-info {
     flex-grow: 1;
     overflow: hidden;
+    /* Make sure the clickable area doesn't span weirdly */
+    display: flex;
+    flex-direction: column;
   }
   
+  /* --- CLICKABLE TITLE STYLES --- */
   .task-title {
-    display: block;
+    display: inline-block; /* Keeps hover underline tight to text */
     font-size: 13px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     margin-bottom: 4px;
-    font-weight: 500;
-    color: #333;
+    font-weight: 600;
+    
+    /* Link Styling */
+    color: #2980b9; /* Basecamp Blue */
+    cursor: pointer;
+    text-decoration: none;
+    transition: color 0.1s;
+  }
+  
+  .task-title:hover {
+    color: #155a8a;
+    text-decoration: underline;
   }
   
   /* Timer Container */
@@ -130,7 +144,6 @@ body {
   .btn-play { color: #27ae60; }
   .btn-pause { color: #e67e22; border-color: #ffe0b2; background: #fff8e1; }
   .btn-copy { color: #555; }
-  .btn-link { color: #2980b9; }
   .btn-del { color: #c0392b; }
   
   .btn-copy:hover { background: #e3f2fd; border-color: #90caf9; color: #1565c0; }

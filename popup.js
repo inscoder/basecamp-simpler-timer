@@ -55,9 +55,12 @@ function render() {
     li.className = `task-row ${isRunning ? 'running' : ''}`;
     li.dataset.id = id;
 
+    // Changes: 
+    // 1. Added data-action="link" to title 
+    // 2. Removed the Link button from btn-group
     li.innerHTML = `
       <div class="task-info">
-        <div class="task-title" title="${task.title}">${task.title}</div>
+        <div class="task-title" data-action="link" title="Open in Basecamp: ${task.title}">${task.title}</div>
         <div class="timer-container">
             <span class="timer">${formatTime(totalMs)}</span>
             <span class="decimal">(${formatDecimal(totalMs)})</span>
@@ -67,10 +70,9 @@ function render() {
         <button class="icon-btn ${isRunning ? 'btn-pause' : 'btn-play'}" data-action="toggle" title="${isRunning ? 'Pause' : 'Start'}">
           ${isRunning ? '⏸' : '▶'}
         </button>
-        <button class="icon-btn btn-copy" data-action="copy" title="Copy decimal hours to clipboard">
+        <button class="icon-btn btn-copy" data-action="copy" title="Copy decimal hours">
             📋
         </button>
-        <button class="icon-btn btn-link" data-action="link" title="Open in Basecamp">🔗</button>
         <button class="icon-btn btn-del" data-action="delete" title="Delete Timer">🗑</button>
       </div>
     `;
@@ -79,20 +81,22 @@ function render() {
     li.querySelector('[data-action="toggle"]').onclick = () => {
       chrome.runtime.sendMessage({ action: 'TOGGLE_TASK', taskId: id }, loadData);
     };
+    
+    // ATTACH LINK HANDLER TO TITLE
     li.querySelector('[data-action="link"]').onclick = () => {
       chrome.runtime.sendMessage({ action: 'OPEN_LINK', url: task.url });
     };
+
     li.querySelector('[data-action="delete"]').onclick = () => {
       if(confirm('Are you sure you want to remove this timer?')) {
         chrome.runtime.sendMessage({ action: 'DELETE_TASK', taskId: id }, loadData);
       }
     };
-    // COPY HANDLER
+    
     const copyBtn = li.querySelector('[data-action="copy"]');
     copyBtn.onclick = () => {
         const decimal = formatDecimal(calculateTime(task));
         navigator.clipboard.writeText(decimal).then(() => {
-            // Visual feedback
             const originalText = copyBtn.textContent;
             copyBtn.textContent = '✅';
             setTimeout(() => { copyBtn.textContent = originalText; }, 1000);
@@ -112,7 +116,6 @@ function updateActiveTimerVisuals() {
     const task = currentData.tasks[activeId];
     if(task) {
         const totalMs = calculateTime(task);
-        // Update both the HH:MM:SS and the Decimal value
         row.querySelector('.timer').textContent = formatTime(totalMs);
         row.querySelector('.decimal').textContent = `(${formatDecimal(totalMs)})`;
     }
@@ -127,7 +130,6 @@ function calculateTime(task) {
   return t;
 }
 
-// HH:MM:SS format
 function formatTime(ms) {
   const totalSeconds = Math.floor(ms / 1000);
   const h = Math.floor(totalSeconds / 3600);
@@ -136,7 +138,6 @@ function formatTime(ms) {
   return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
 }
 
-// Decimal format (e.g. 1.25)
 function formatDecimal(ms) {
     const hours = ms / (1000 * 60 * 60);
     return hours.toFixed(2);
