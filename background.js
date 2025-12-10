@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'basecamp_timer_v1';
+const STORAGE_KEY = 'basecamp_timer_v1_1';
 
 // --- Initialization ---
 chrome.runtime.onInstalled.addListener(() => {
@@ -43,26 +43,15 @@ async function saveData(data) {
   updateBadge(data.activeTaskId ? 'ON' : '');
 }
 
-// THE PARSER: Robust logic to handle #hashes and ?queries
+// THE PARSER
 function getBasecampId(url) {
     try {
-        // 1. URL Object automatically isolates the path from hash/query
         const urlObj = new URL(url);
         let path = urlObj.pathname;
-
-        // 2. Remove trailing slash if it exists
-        if (path.endsWith('/')) {
-            path = path.slice(0, -1);
-        }
-
-        // 3. Get the very last segment
+        if (path.endsWith('/')) path = path.slice(0, -1);
         const segments = path.split('/');
         const lastSegment = segments[segments.length - 1];
-
-        // 4. Validate it is numeric
-        if (/^\d+$/.test(lastSegment)) {
-            return lastSegment;
-        }
+        if (/^\d+$/.test(lastSegment)) return lastSegment;
         return null;
     } catch (e) {
         console.error("Parsing error", e);
@@ -70,45 +59,67 @@ function getBasecampId(url) {
     }
 }
 
+// --- UPDATED LOGIC HERE ---
 async function handleAddTask(sendResponse) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   
-  // 1. Domain Check
   if (!tab || !tab.url.includes('3.basecamp.com')) {
     sendResponse({ success: false, error: "This is not a Basecamp page." });
     return;
   }
 
-  // 2. ID Extraction
   const id = getBasecampId(tab.url);
-
   if (!id) {
-    sendResponse({ success: false, error: "Could not find a valid Task/Card ID in this URL." });
+    sendResponse({ success: false, error: "Could not find a valid Task ID." });
     return;
   }
 
   const data = await getData();
-  
-  // 3. Add if not exists (Prevent duplicates)
-  if (!data.tasks[id]) {
-    // Clean title: "Fix Bug on Basecamp" -> "Fix Bug"
-    const cleanTitle = tab.title.replace(/ on Basecamp$/, '').trim();
-    
-    // We store the clean URL (no hash) to ensure the link back is stable
-    const urlObj = new URL(tab.url);
-    const cleanUrl = urlObj.origin + urlObj.pathname;
+  const now = Date.now();
 
-    data.tasks[id] = {
-      id: id,
-      title: cleanTitle,
-      url: cleanUrl,
-      status: 'paused',
-      accumulatedTime: 0,
-      lastStartTime: null
-    };
-    await saveData(data);
+  // 1. AUTO-PAUSE: If a different task is currently running, pause it.
+  if (data.activeTaskId && data.activeTaskId !== id) {
+      const active = data.tasks[data.activeTaskId];
+      if (active) {
+          active.accumulatedTime += (now - active.lastStartTime);
+          active.lastStartTime = null;
+          active.status = 'paused';
+      }
   }
+
+  // 2. PREPARE THE TARGET TASK
+  if (data.tasks[id]) {
+      // SCENARIO: Existing Task.
+      // Action: Resume it if it wasn't running.
+      // Note: We also update title/url in case they changed.
+      const task = data.tasks[id];
+      if (task.status !== 'running') {
+          task.status = 'running';
+          task.lastStartTime = now;
+      }
+      // Update metadata (optional but good practice)
+      task.title = tab.title.replace(/ on Basecamp$/, '').trim();
+  } else {
+      // SCENARIO: New Task.
+      // Action: Create it with status 'running'.
+      const cleanTitle = tab.title.replace(/ on Basecamp$/, '').trim();
+      const urlObj = new URL(tab.url);
+      const cleanUrl = urlObj.origin + urlObj.pathname;
+
+      data.tasks[id] = {
+        id: id,
+        title: cleanTitle,
+        url: cleanUrl,
+        status: 'running', // <--- Starts immediately
+        accumulatedTime: 0,
+        lastStartTime: now // <--- Timestamp set immediately
+      };
+  }
+
+  // 3. SET AS ACTIVE
+  data.activeTaskId = id;
   
+  await saveData(data);
   sendResponse({ success: true });
 }
 
@@ -120,14 +131,13 @@ async function handleToggleTask(taskId) {
   if (!targetTask) return { success: false };
 
   if (targetTask.status === 'running') {
-    // SCENARIO A: PAUSE the currently running task
+    // PAUSE
     targetTask.accumulatedTime += (now - targetTask.lastStartTime);
     targetTask.lastStartTime = null;
     targetTask.status = 'paused';
     data.activeTaskId = null;
   } else {
-    // SCENARIO B: START a task
-    // 1. Auto-Switch: If another task is running, pause it first
+    // START (and auto-pause others)
     if (data.activeTaskId && data.activeTaskId !== taskId) {
         const active = data.tasks[data.activeTaskId];
         if (active) {
@@ -137,7 +147,6 @@ async function handleToggleTask(taskId) {
         }
     }
     
-    // 2. Start target
     targetTask.status = 'running';
     targetTask.lastStartTime = now;
     data.activeTaskId = taskId;

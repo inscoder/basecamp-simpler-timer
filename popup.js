@@ -3,18 +3,19 @@ let currentData = { activeTaskId: null, tasks: {} };
 document.addEventListener('DOMContentLoaded', () => {
   loadData();
   
+  // Handlers
   document.getElementById('addBtn').addEventListener('click', () => {
     chrome.runtime.sendMessage({ action: 'ADD_TASK' }, (res) => {
       if (res.success) {
         showError('');
         loadData();
       } else {
-        showError(res.error || "Unknown error");
+        showError(res.error || "Failed to start timer. Are you on a Basecamp page?");
       }
     });
   });
 
-  // Ticking mechanism: Update active timer every 1 second
+  // Ticking mechanism
   setInterval(() => {
     if (currentData.activeTaskId) updateActiveTimerVisuals();
   }, 1000);
@@ -86,7 +87,6 @@ function render() {
   });
 }
 
-// Optimization: Update only the text of the running timer, don't re-render list
 function updateActiveTimerVisuals() {
   const activeId = currentData.activeTaskId;
   if (!activeId) return;
