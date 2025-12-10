@@ -10,8 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showError('');
         loadData();
       } else {
-        // Display the specific error from background (e.g. "Page type not supported")
-        showError(res.error || "Failed to start timer.");
+        showError(res.error || "Failed to start timer. Are you on a Basecamp page?");
       }
     });
   });
@@ -21,35 +20,26 @@ document.addEventListener('DOMContentLoaded', () => {
   }, 1000);
 });
 
-// Same regex logic as background.js to identify current page
 function getIdFromUrl(url) {
     try {
         const urlObj = new URL(url);
         const path = urlObj.pathname;
-        
         const regex = /\/(projects|messages|cards|todos|documents|schedule_entries)\/(\d+)/;
         const match = path.match(regex);
-
-        if (match && match[2]) {
-            return match[2];
-        }
-        return null;
+        return match && match[2] ? match[2] : null;
     } catch (e) {
         return null;
     }
 }
 
 async function loadData() {
-  const dataPromise = new Promise(resolve => {
-      chrome.runtime.sendMessage({ action: 'GET_DATA' }, resolve);
-  });
+  const dataPromise = new Promise(resolve => chrome.runtime.sendMessage({ action: 'GET_DATA' }, resolve));
   const tabPromise = chrome.tabs.query({ active: true, currentWindow: true });
 
   const [data, tabs] = await Promise.all([dataPromise, tabPromise]);
   
   currentData = data;
   
-  // Only highlight if we are on a valid Basecamp page type
   if (tabs && tabs[0] && tabs[0].url.includes('3.basecamp.com')) {
       currentTabId = getIdFromUrl(tabs[0].url);
   } else {
@@ -62,8 +52,16 @@ async function loadData() {
 function render() {
   const ul = document.getElementById('taskList');
   const emptyState = document.getElementById('emptyState');
+  
+  // 1. FLIP: Record Old Positions
+  const prevPositions = {};
+  ul.querySelectorAll('.task-row').forEach(row => {
+    prevPositions[row.dataset.id] = row.getBoundingClientRect().top;
+  });
+
   ul.innerHTML = '';
   
+  // Sort Logic: Active first, then by previous start time (stable sortish)
   const ids = Object.keys(currentData.tasks).sort((a, b) => {
     if (a === currentData.activeTaskId) return -1;
     if (b === currentData.activeTaskId) return 1;
@@ -103,6 +101,7 @@ function render() {
       </div>
     `;
 
+    // Event Delegation
     li.querySelector('[data-action="toggle"]').onclick = () => {
       chrome.runtime.sendMessage({ action: 'TOGGLE_TASK', taskId: id }, loadData);
     };
@@ -114,7 +113,6 @@ function render() {
         chrome.runtime.sendMessage({ action: 'DELETE_TASK', taskId: id }, loadData);
       }
     };
-    
     const decimalEl = li.querySelector('[data-action="copy"]');
     decimalEl.onclick = () => {
         const decimal = formatDecimal(calculateTime(task));
@@ -122,7 +120,6 @@ function render() {
             decimalEl.classList.add('copied');
             decimalEl.textContent = '(Copied!)';
             decimalEl.dataset.locked = "true";
-
             setTimeout(() => {
                 decimalEl.classList.remove('copied');
                 decimalEl.dataset.locked = "false";
@@ -132,6 +129,35 @@ function render() {
     };
 
     ul.appendChild(li);
+  });
+
+  // 2. FLIP: Calculate Delta and Animate
+  // We perform this AFTER the new list is inserted into the DOM
+  requestAnimationFrame(() => {
+      ul.querySelectorAll('.task-row').forEach(row => {
+        const id = row.dataset.id;
+        if (prevPositions[id] !== undefined) {
+          const newTop = row.getBoundingClientRect().top;
+          const oldTop = prevPositions[id];
+          const deltaY = oldTop - newTop;
+
+          // If the item actually moved
+          if (deltaY !== 0) {
+            // INVERT: Move it back to where it was instantly
+            row.style.transform = `translateY(${deltaY}px)`;
+            row.style.transition = 'none';
+            
+            // Force Reflow so the browser registers the position
+            void row.offsetHeight; 
+
+            // PLAY: Remove the transform and let it slide to 0
+            requestAnimationFrame(() => {
+                row.style.transition = 'transform 0.3s cubic-bezier(0.2, 0, 0, 1)'; // Smooth easing
+                row.style.transform = '';
+            });
+          }
+        }
+      });
   });
 }
 
