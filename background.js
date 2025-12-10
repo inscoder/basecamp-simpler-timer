@@ -43,35 +43,49 @@ async function saveData(data) {
   updateBadge(data.activeTaskId ? 'ON' : '');
 }
 
-// THE PARSER
+// THE PARSER: Strict Regex for allowed page types only
 function getBasecampId(url) {
     try {
         const urlObj = new URL(url);
-        let path = urlObj.pathname;
-        if (path.endsWith('/')) path = path.slice(0, -1);
-        const segments = path.split('/');
-        const lastSegment = segments[segments.length - 1];
-        if (/^\d+$/.test(lastSegment)) return lastSegment;
+        const path = urlObj.pathname;
+
+        // Supported Patterns:
+        // /projects/123
+        // /messages/123
+        // /cards/123 (matches .../card_tables/cards/123)
+        // /todos/123
+        // /documents/123
+        // /schedule_entries/123
+        
+        // Regex Explanation:
+        // \/ : Starts with a slash
+        // (...) : Group of allowed types joined by OR (|)
+        // \/ : Followed by a slash
+        // (\d+) : Capture the numeric ID
+        const regex = /\/(projects|messages|cards|todos|documents|schedule_entries)\/(\d+)/;
+        
+        const match = path.match(regex);
+
+        if (match && match[2]) {
+            return match[2]; // Return the captured ID
+        }
         return null;
+
     } catch (e) {
         console.error("Parsing error", e);
         return null;
     }
 }
 
-// LINK HANDLER (Fixed Back Button Trap)
+// LINK HANDLER
 async function handleOpenLink(url) {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     
     if (tab) {
-        // Fix: If we are already on the exact same URL, RELOAD instead of UPDATE.
-        // 'Update' pushes a new history entry (A -> A), trapping the user so 'Back' just goes to the previous A.
-        // 'Reload' refreshes the page without adding to history.
-        
-        // Normalize URLs (ignore trailing slashes) for comparison
         const current = tab.url.replace(/\/$/, '');
         const target = url.replace(/\/$/, '');
 
+        // If strict match, reload to avoid history trap. Otherwise update.
         if (current === target) {
             chrome.tabs.reload(tab.id);
         } else {
@@ -91,8 +105,10 @@ async function handleAddTask(sendResponse) {
   }
 
   const id = getBasecampId(tab.url);
+  
   if (!id) {
-    sendResponse({ success: false, error: "Could not find a valid Task ID." });
+    // Specific error message for unsupported pages
+    sendResponse({ success: false, error: "Time tracking is not supported on this page type.\n\nSupported: Projects, Todos, Cards, Docs, Messages, Schedules." });
     return;
   }
 

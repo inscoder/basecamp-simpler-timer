@@ -10,25 +10,29 @@ document.addEventListener('DOMContentLoaded', () => {
         showError('');
         loadData();
       } else {
-        showError(res.error || "Failed to start timer. Are you on a Basecamp page?");
+        // Display the specific error from background (e.g. "Page type not supported")
+        showError(res.error || "Failed to start timer.");
       }
     });
   });
 
-  // Ticking mechanism
   setInterval(() => {
     if (currentData.activeTaskId) updateActiveTimerVisuals();
   }, 1000);
 });
 
+// Same regex logic as background.js to identify current page
 function getIdFromUrl(url) {
     try {
         const urlObj = new URL(url);
-        let path = urlObj.pathname;
-        if (path.endsWith('/')) path = path.slice(0, -1);
-        const segments = path.split('/');
-        const lastSegment = segments[segments.length - 1];
-        if (/^\d+$/.test(lastSegment)) return lastSegment;
+        const path = urlObj.pathname;
+        
+        const regex = /\/(projects|messages|cards|todos|documents|schedule_entries)\/(\d+)/;
+        const match = path.match(regex);
+
+        if (match && match[2]) {
+            return match[2];
+        }
         return null;
     } catch (e) {
         return null;
@@ -45,6 +49,7 @@ async function loadData() {
   
   currentData = data;
   
+  // Only highlight if we are on a valid Basecamp page type
   if (tabs && tabs[0] && tabs[0].url.includes('3.basecamp.com')) {
       currentTabId = getIdFromUrl(tabs[0].url);
   } else {
@@ -82,9 +87,6 @@ function render() {
     li.className = `task-row ${isRunning ? 'running' : ''} ${isCurrentPage ? 'current-page-row' : ''}`;
     li.dataset.id = id;
 
-    // Changes: 
-    // 1. Decimal span has data-action="copy" and a tooltip
-    // 2. Removed copy button from btn-group
     li.innerHTML = `
       <div class="task-info">
         <div class="task-title" data-action="link" title="Open in Basecamp: ${task.title}">${task.title}</div>
@@ -101,7 +103,6 @@ function render() {
       </div>
     `;
 
-    // Event Delegation
     li.querySelector('[data-action="toggle"]').onclick = () => {
       chrome.runtime.sendMessage({ action: 'TOGGLE_TASK', taskId: id }, loadData);
     };
@@ -113,21 +114,18 @@ function render() {
         chrome.runtime.sendMessage({ action: 'DELETE_TASK', taskId: id }, loadData);
       }
     };
-
-    // COPY HANDLER
+    
     const decimalEl = li.querySelector('[data-action="copy"]');
     decimalEl.onclick = () => {
         const decimal = formatDecimal(calculateTime(task));
         navigator.clipboard.writeText(decimal).then(() => {
-            // Visual Feedback
             decimalEl.classList.add('copied');
             decimalEl.textContent = '(Copied!)';
-            decimalEl.dataset.locked = "true"; // Prevent timer update from overwriting
+            decimalEl.dataset.locked = "true";
 
             setTimeout(() => {
                 decimalEl.classList.remove('copied');
                 decimalEl.dataset.locked = "false";
-                // Immediate refresh to show number again
                 decimalEl.textContent = `(${formatDecimal(calculateTime(task))})`;
             }, 1200);
         });
@@ -148,7 +146,6 @@ function updateActiveTimerVisuals() {
         const totalMs = calculateTime(task);
         row.querySelector('.timer').textContent = formatTime(totalMs);
         
-        // Update decimal only if not currently showing "Copied!" message
         const decimalEl = row.querySelector('.decimal');
         if (decimalEl && decimalEl.dataset.locked !== "true") {
             decimalEl.textContent = `(${formatDecimal(totalMs)})`;
