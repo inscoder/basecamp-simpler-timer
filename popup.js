@@ -1,10 +1,9 @@
 let currentData = { activeTaskId: null, tasks: {} };
-let currentTabId = null; // Store the ID of the Basecamp page we are looking at
+let currentTabId = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   loadData();
   
-  // Handlers
   document.getElementById('addBtn').addEventListener('click', () => {
     chrome.runtime.sendMessage({ action: 'ADD_TASK' }, (res) => {
       if (res.success) {
@@ -22,7 +21,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }, 1000);
 });
 
-// Helper: Same parser logic as background.js to ensure we match correctly
 function getIdFromUrl(url) {
     try {
         const urlObj = new URL(url);
@@ -38,19 +36,15 @@ function getIdFromUrl(url) {
 }
 
 async function loadData() {
-  // 1. Get Timer Data
   const dataPromise = new Promise(resolve => {
       chrome.runtime.sendMessage({ action: 'GET_DATA' }, resolve);
   });
-
-  // 2. Get Current Tab Info (to see if we are on a known task)
   const tabPromise = chrome.tabs.query({ active: true, currentWindow: true });
 
   const [data, tabs] = await Promise.all([dataPromise, tabPromise]);
   
   currentData = data;
   
-  // Determine if current tab matches any task
   if (tabs && tabs[0] && tabs[0].url.includes('3.basecamp.com')) {
       currentTabId = getIdFromUrl(tabs[0].url);
   } else {
@@ -81,40 +75,33 @@ function render() {
   ids.forEach(id => {
     const task = currentData.tasks[id];
     const isRunning = task.status === 'running';
-    
-    // Check if this row matches the page we are looking at
     const isCurrentPage = (id === currentTabId);
-
     const totalMs = calculateTime(task);
     
     const li = document.createElement('li');
-    // Add 'current-page-row' class if match
     li.className = `task-row ${isRunning ? 'running' : ''} ${isCurrentPage ? 'current-page-row' : ''}`;
     li.dataset.id = id;
 
-    // Optional: Add a visual indicator in text, though the border handles it well
-    // const indicator = isCurrentPage ? '<span style="color:#2980b9; margin-left:4px;">📍</span>' : '';
-
+    // Changes: 
+    // 1. Decimal span has data-action="copy" and a tooltip
+    // 2. Removed copy button from btn-group
     li.innerHTML = `
       <div class="task-info">
         <div class="task-title" data-action="link" title="Open in Basecamp: ${task.title}">${task.title}</div>
         <div class="timer-container">
             <span class="timer">${formatTime(totalMs)}</span>
-            <span class="decimal">(${formatDecimal(totalMs)})</span>
+            <span class="decimal" data-action="copy" title="Click to copy decimal hours">(${formatDecimal(totalMs)})</span>
         </div>
       </div>
       <div class="btn-group">
         <button class="icon-btn ${isRunning ? 'btn-pause' : 'btn-play'}" data-action="toggle" title="${isRunning ? 'Pause' : 'Start'}">
           ${isRunning ? '⏸' : '▶'}
         </button>
-        <button class="icon-btn btn-copy" data-action="copy" title="Copy decimal hours">
-            📋
-        </button>
         <button class="icon-btn btn-del" data-action="delete" title="Delete Timer">🗑</button>
       </div>
     `;
 
-    // Event Listeners
+    // Event Delegation
     li.querySelector('[data-action="toggle"]').onclick = () => {
       chrome.runtime.sendMessage({ action: 'TOGGLE_TASK', taskId: id }, loadData);
     };
@@ -126,13 +113,23 @@ function render() {
         chrome.runtime.sendMessage({ action: 'DELETE_TASK', taskId: id }, loadData);
       }
     };
-    const copyBtn = li.querySelector('[data-action="copy"]');
-    copyBtn.onclick = () => {
+
+    // COPY HANDLER
+    const decimalEl = li.querySelector('[data-action="copy"]');
+    decimalEl.onclick = () => {
         const decimal = formatDecimal(calculateTime(task));
         navigator.clipboard.writeText(decimal).then(() => {
-            const originalText = copyBtn.textContent;
-            copyBtn.textContent = '✅';
-            setTimeout(() => { copyBtn.textContent = originalText; }, 1000);
+            // Visual Feedback
+            decimalEl.classList.add('copied');
+            decimalEl.textContent = '(Copied!)';
+            decimalEl.dataset.locked = "true"; // Prevent timer update from overwriting
+
+            setTimeout(() => {
+                decimalEl.classList.remove('copied');
+                decimalEl.dataset.locked = "false";
+                // Immediate refresh to show number again
+                decimalEl.textContent = `(${formatDecimal(calculateTime(task))})`;
+            }, 1200);
         });
     };
 
@@ -150,7 +147,12 @@ function updateActiveTimerVisuals() {
     if(task) {
         const totalMs = calculateTime(task);
         row.querySelector('.timer').textContent = formatTime(totalMs);
-        row.querySelector('.decimal').textContent = `(${formatDecimal(totalMs)})`;
+        
+        // Update decimal only if not currently showing "Copied!" message
+        const decimalEl = row.querySelector('.decimal');
+        if (decimalEl && decimalEl.dataset.locked !== "true") {
+            decimalEl.textContent = `(${formatDecimal(totalMs)})`;
+        }
     }
   }
 }
