@@ -2,7 +2,7 @@
 
 A Chrome Extension designed to track time on Basecamp that functions as a stopwatch.
 
-## 🚀 Key Features
+## Key Features
 
 * One-Click Start: Click `+ Start Timer` to immediately begin tracking the current page.
 
@@ -16,7 +16,7 @@ A Chrome Extension designed to track time on Basecamp that functions as a stopwa
 
 * Privacy Focused: Uses `activeTab` permission only. Does not scan your background tabs or history.
 
-## 🛠 Supported Page Types
+## Supported Page Types
 
 The extension strictly validates URLs to ensure you only track time on actionable work items. It supports:
 
@@ -32,7 +32,10 @@ The extension strictly validates URLs to ensure you only track time on actionabl
 
 * Schedule Entries (`/schedule_entries/`)
 
-## 📦 Installation
+## Vibe Code Alert
+This project is a pure vibe code experiment to solve the "missing stopwatch" problem in Basecamp. We stripped out all the bloat (auto-fill, tracking scripts) to create the simplest possible tool that gets the job done. It serves as a snapshot of a specific problem-solving session. No support is planned; code is ephemeral now. Fork it, prompt it, and make it yours.
+
+## Installation
 
 Since this is a custom internal tool, you will install it as an "Unpacked Extension" in Chrome.
 
@@ -48,7 +51,7 @@ Since this is a custom internal tool, you will install it as an "Unpacked Extens
 
 6. (Optional) Click the Puzzle Piece icon in the Chrome toolbar and Pin the extension for easy access.
 
-## 📖 How to Use
+## How to Use
 
 ### Workflow: Start, Stop, & Log
 
@@ -86,13 +89,13 @@ Since this is a custom internal tool, you will install it as an "Unpacked Extens
 
 * Delete: Click the Trash icon (🗑) to remove a timer from the list.
 
-## 🚫 Out of Scope: Why No Auto-Fill?
+## Out of Scope: Why No Auto-Fill?
 
 You might wonder why the extension doesn't automatically fill in the Basecamp timesheet form for you.
 
 We intentionally excluded this feature for stability. Basecamp frequently updates their user interface code (HTML/CSS). If this extension attempted to find and fill specific input fields programmatically, it would likely break every time Basecamp pushed an update. By keeping this tool as a focused, "Read-Only" stopwatch, we ensure it remains robust, maintenance-free, and reliable regardless of Basecamp's visual changes.
 
-## 📂 Project Structure
+## Project Structure
 
 ```
 basecamp_timer/
